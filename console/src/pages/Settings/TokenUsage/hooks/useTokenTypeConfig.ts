@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import dayjs, { type Dayjs } from "dayjs";
 import { formatCompact } from "../../../../utils/formatNumber";
+import type { ScaleType } from "./useScaleType";
+import { applyScale, computeLogDomain, toPlottableAt } from "./useScaleType";
 
 interface UseTokenTypeConfigProps {
   byDate: Record<
@@ -14,6 +16,7 @@ interface UseTokenTypeConfigProps {
   startDate: Dayjs;
   endDate: Dayjs;
   isDark: boolean;
+  scaleType: ScaleType;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -27,6 +30,7 @@ export function useTokenTypeConfig({
   startDate,
   endDate,
   isDark,
+  scaleType,
 }: UseTokenTypeConfigProps) {
   return useMemo(() => {
     if (!byDate || Object.keys(byDate).length === 0) return null;
@@ -47,30 +51,52 @@ export function useTokenTypeConfig({
     ] as const;
     const colors = allTypes.map((type) => TYPE_COLORS[type]);
 
-    const chartData: Array<{
-      date: string;
-      type: string;
-      value: number;
-    }> = [];
-
-    allDates.forEach((date) => {
-      const dayStats = byDate[date] || {
+    // Tokens of one type on one day; 0 for a day with no record, and for a
+    // date outside the window.
+    const rawAt = (date: string | undefined, type: string) => {
+      const dayStats = (date && byDate[date]) || {
         prompt_tokens: 0,
         completion_tokens: 0,
         call_count: 0,
       };
+      if (type === "Prompt Tokens") return dayStats.prompt_tokens;
+      if (type === "Completion Tokens") return dayStats.completion_tokens;
+      return dayStats.prompt_tokens + dayStats.completion_tokens;
+    };
 
-      const typeValues: Record<string, number> = {
-        "Prompt Tokens": dayStats.prompt_tokens,
-        "Completion Tokens": dayStats.completion_tokens,
-        "Total Tokens": dayStats.prompt_tokens + dayStats.completion_tokens,
-      };
+    const chartData: Array<{
+      date: string;
+      type: string;
+      value: number | null;
+      rawValue: number;
+    }> = [];
 
+    // The domain has to be known before any point can be anchored to the
+    // axis floor, so the raw values are collected first.
+    const rawValues: number[] = [];
+    allDates.forEach((date) => {
       allTypes.forEach((type) => {
+        rawValues.push(rawAt(date, type));
+      });
+    });
+    const domain = computeLogDomain(rawValues, scaleType);
+
+    allDates.forEach((date, i) => {
+      allTypes.forEach((type) => {
+        const raw = rawAt(date, type);
         chartData.push({
           date,
           type,
-          value: typeValues[type] || 0,
+          // Neighbours are the same type on the adjacent days, which is what
+          // decides whether a zero anchors to the floor or breaks the line.
+          value: toPlottableAt(
+            raw,
+            rawAt(allDates[i - 1], type),
+            rawAt(allDates[i + 1], type),
+            scaleType,
+            domain?.domainMin,
+          ),
+          rawValue: raw,
         });
       });
     });
@@ -91,12 +117,15 @@ export function useTokenTypeConfig({
         lineWidth: 3,
         fillOpacity: 0,
       },
+      ...applyScale(scaleType, domain, allDates),
       tooltip: {
         title: "date",
         items: [
-          (datum: { date: string; value: number; type: string }) => ({
+          // rawValue, not value: a zero anchored at the axis floor is a
+          // position, and must still report 0 here.
+          (datum: { date: string; rawValue: number; type: string }) => ({
             name: datum.type,
-            value: formatCompact(datum.value),
+            value: formatCompact(datum.rawValue),
           }),
         ],
       },
@@ -113,14 +142,10 @@ export function useTokenTypeConfig({
           grid: null,
         },
         y: {
-          labelFormatter: (v: number) => {
-            if (v >= 1_000_000) {
-              return `${(v / 1_000_000).toFixed(1)}M`;
-            } else if (v >= 1_000) {
-              return `${(v / 1_000).toFixed(0)}K`;
-            }
-            return v.toString();
-          },
+          // formatCompact drops a trailing .0, so decade ticks read 1M
+          // rather than 1.0M, and it carries a B unit the local formatter
+          // lacked (1e11 rendered as "100000.0M").
+          labelFormatter: (v: number) => formatCompact(v),
           grid: {
             line: {
               style: {
@@ -144,5 +169,5 @@ export function useTokenTypeConfig({
       },
       color: colors,
     };
-  }, [byDate, startDate, endDate, isDark]);
+  }, [byDate, startDate, endDate, isDark, scaleType]);
 }

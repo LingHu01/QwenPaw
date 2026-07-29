@@ -7,6 +7,45 @@
 
 .toolbar {
   margin: 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+// Matches the segmented control on the MCP page (.accessPolicySegmented):
+// same container, thumb and item rules. The colours are inlined rather than
+// referencing that page's --mcp-policy-segment-* variables, which are scoped
+// to it; if these controls gain a third user the shared parts are worth
+// lifting into a mixin.
+.scaleSegmented {
+  padding: 3px;
+  border: 1px solid rgba(20, 20, 19, 0.08);
+  border-radius: 9px;
+  background: rgba(20, 20, 19, 0.035);
+
+  :global(.ant-segmented-group),
+  :global(.qwenpaw-segmented-group) {
+    gap: 2px;
+  }
+
+  :global(.ant-segmented-thumb),
+  :global(.qwenpaw-segmented-thumb) {
+    border: 1px solid rgba(20, 20, 19, 0.08);
+    border-radius: 7px;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  :global(.ant-segmented-item),
+  :global(.qwenpaw-segmented-item) {
+    border-radius: 7px;
+    color: rgba(20, 20, 19, 0.62);
+    font-weight: 500;
+    transition:
+      color 0.18s ease,
+      background-color 0.18s ease;
+  }
 }
 
 .loading {
@@ -108,6 +147,27 @@
 
 /* ─── Dark mode ─────────────────────────────────────────────────────────────── */
 :global(.dark-mode) {
+  .scaleSegmented {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+
+    :global(.ant-segmented-thumb),
+    :global(.qwenpaw-segmented-thumb) {
+      border-color: rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    :global(.ant-segmented-item),
+    :global(.qwenpaw-segmented-item) {
+      color: rgba(255, 255, 255, 0.62);
+    }
+
+    :global(.ant-segmented-item-selected),
+    :global(.qwenpaw-segmented-item-selected) {
+      color: rgba(255, 255, 255, 0.92) !important;
+    }
+  }
+
   .loading {
     color: rgba(255, 255, 255, 0.35);
   }

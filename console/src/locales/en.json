@@ -1751,7 +1751,9 @@
     "allSelected": "All",
     "itemsSelected": "{{count}} selected",
     "selectModels": "Select models",
-    "selectTokenTypes": "Select token types"
+    "selectTokenTypes": "Select token types",
+    "scaleLinear": "Linear",
+    "scaleLog": "Log"
   },
   "agentStats": {
     "title": "Agent Statistics",
