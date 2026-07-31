@@ -8,11 +8,15 @@ describe("formatCompact", () => {
     expect(formatCompact(999)).toBe("999");
   });
 
-  it("formats K/M/B bands", () => {
+  it("formats K/M/B/T bands", () => {
     expect(formatCompact(1000)).toBe("1K");
     expect(formatCompact(1500)).toBe("1.5K");
     expect(formatCompact(1_200_000)).toBe("1.2M");
     expect(formatCompact(1_000_000_000)).toBe("1B");
+    expect(formatCompact(1e12)).toBe("1T");
+    expect(formatCompact(1.5e12)).toBe("1.5T");
+    // Without a T band this rendered "100000B".
+    expect(formatCompact(1e14)).toBe("100T");
   });
 
   it("promotes to the next unit when rounding carries to 1000", () => {
@@ -21,11 +25,14 @@ describe("formatCompact", () => {
     expect(formatCompact(999_950)).toBe("1M");
     expect(formatCompact(999_999_999)).toBe("1B");
     expect(formatCompact(999_950_000)).toBe("1B");
+    expect(formatCompact(999_999_999_999)).toBe("1T");
+    expect(formatCompact(999_950_000_000)).toBe("1T");
   });
 
   it("does not promote just below the rounding boundary", () => {
     expect(formatCompact(999_499)).toBe("999.5K");
     expect(formatCompact(999_499_999)).toBe("999.5M");
+    expect(formatCompact(999_499_999_999)).toBe("999.5B");
   });
 
   it("returns 0 for non-finite or negative input", () => {
