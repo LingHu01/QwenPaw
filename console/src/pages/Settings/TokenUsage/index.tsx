@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DatePicker } from "antd";
+import { DatePicker, Segmented } from "antd";
 import { useTranslation } from "react-i18next";
 import dayjs, { type Dayjs } from "dayjs";
 import { useTheme } from "../../../contexts/ThemeContext";
@@ -18,6 +18,7 @@ import {
 import { useDataAggregation } from "./hooks/useDataAggregation";
 import { useModelTrendConfig } from "./hooks/useModelTrendConfig";
 import { useTokenTypeConfig } from "./hooks/useTokenTypeConfig";
+import { useScaleType, type ScaleType } from "./hooks/useScaleType";
 import styles from "./index.module.less";
 
 function TokenUsagePage() {
@@ -31,6 +32,7 @@ function TokenUsagePage() {
     dayjs().subtract(30, "day"),
   );
   const [endDate, setEndDate] = useState<Dayjs>(dayjs());
+  const [scaleType, setScaleType] = useScaleType();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -68,6 +70,7 @@ function TokenUsagePage() {
     startDate,
     endDate,
     isDark,
+    scaleType,
   });
 
   const tokenTypeConfig = useTokenTypeConfig({
@@ -75,6 +78,7 @@ function TokenUsagePage() {
     startDate,
     endDate,
     isDark,
+    scaleType,
   });
 
   const byModelData = useMemo(() => {
@@ -139,6 +143,16 @@ function TokenUsagePage() {
             disabledDate={(current) =>
               current && current.isAfter(dayjs(), "day")
             }
+          />
+          <Segmented
+            className={styles.scaleSegmented}
+            size="small"
+            value={scaleType}
+            onChange={(v) => setScaleType(v as ScaleType)}
+            options={[
+              { label: t("tokenUsage.scaleLinear", "Linear"), value: "linear" },
+              { label: t("tokenUsage.scaleLog", "Log"), value: "log" },
+            ]}
           />
         </div>
 

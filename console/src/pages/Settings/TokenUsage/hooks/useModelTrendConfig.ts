@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import dayjs, { type Dayjs } from "dayjs";
 import { formatCompact } from "../../../../utils/formatNumber";
+import type { ScaleType } from "./useScaleType";
+import { applyScale, computeLogDomain, toPlottableAt } from "./useScaleType";
 
 interface UseModelTrendConfigProps {
   byDateModel: Record<
@@ -19,6 +21,7 @@ interface UseModelTrendConfigProps {
   startDate: Dayjs;
   endDate: Dayjs;
   isDark: boolean;
+  scaleType: ScaleType;
 }
 
 export function useModelTrendConfig({
@@ -26,6 +29,7 @@ export function useModelTrendConfig({
   startDate,
   endDate,
   isDark,
+  scaleType,
 }: UseModelTrendConfigProps) {
   return useMemo(() => {
     if (!byDateModel || Object.keys(byDateModel).length === 0) return null;
@@ -44,19 +48,44 @@ export function useModelTrendConfig({
       current = current.add(1, "day");
     }
 
+    // Raw prompt tokens for one model on one day; 0 for a day with no
+    // record, and for a date outside the window.
+    const rawAt = (date: string | undefined, modelKey: string) =>
+      (date && byDateModel[date]?.[modelKey]?.prompt_tokens) || 0;
+
     const chartData: Array<{
       date: string;
       model: string;
-      value: number;
+      value: number | null;
+      rawValue: number;
     }> = [];
 
+    // The domain has to be known before any point can be anchored to the
+    // axis floor, so the raw values are collected first.
+    const rawValues: number[] = [];
     allDates.forEach((date) => {
-      const dayData = byDateModel[date] || {};
       allModelKeys.forEach((modelKey) => {
+        rawValues.push(rawAt(date, modelKey));
+      });
+    });
+    const domain = computeLogDomain(rawValues, scaleType);
+
+    allDates.forEach((date, i) => {
+      allModelKeys.forEach((modelKey) => {
+        const raw = rawAt(date, modelKey);
         chartData.push({
           date,
           model: modelKey,
-          value: dayData[modelKey]?.prompt_tokens || 0,
+          // Neighbours are the same model on the adjacent days, which is what
+          // decides whether a zero anchors to the floor or breaks the line.
+          value: toPlottableAt(
+            raw,
+            rawAt(allDates[i - 1], modelKey),
+            rawAt(allDates[i + 1], modelKey),
+            scaleType,
+            domain?.domainMin,
+          ),
+          rawValue: raw,
         });
       });
     });
@@ -77,12 +106,15 @@ export function useModelTrendConfig({
         lineWidth: 3,
         fillOpacity: 0,
       },
+      ...applyScale(scaleType, domain, allDates),
       tooltip: {
         title: "date",
         items: [
-          (datum: { date: string; value: number; model: string }) => ({
+          // rawValue, not value: a zero anchored at the axis floor is a
+          // position, and must still report 0 here.
+          (datum: { date: string; rawValue: number; model: string }) => ({
             name: datum.model,
-            value: formatCompact(datum.value),
+            value: formatCompact(datum.rawValue),
           }),
         ],
       },
@@ -99,14 +131,10 @@ export function useModelTrendConfig({
           grid: null,
         },
         y: {
-          labelFormatter: (v: number) => {
-            if (v >= 1_000_000) {
-              return `${(v / 1_000_000).toFixed(1)}M`;
-            } else if (v >= 1_000) {
-              return `${(v / 1_000).toFixed(0)}K`;
-            }
-            return v.toString();
-          },
+          // formatCompact drops a trailing .0, so decade ticks read 1M
+          // rather than 1.0M, and it carries a B unit the local formatter
+          // lacked (1e11 rendered as "100000.0M").
+          labelFormatter: (v: number) => formatCompact(v),
           grid: {
             line: {
               style: {
@@ -133,5 +161,5 @@ export function useModelTrendConfig({
         },
       },
     };
-  }, [byDateModel, startDate, endDate, isDark]);
+  }, [byDateModel, startDate, endDate, isDark, scaleType]);
 }
